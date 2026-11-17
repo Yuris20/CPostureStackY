@@ -1,0 +1,17 @@
+# settings - variabili del plugin CPostureStackY.
+# DevStack carica questo file all'avvio di stack.sh.
+# La sintassi ${VAR:-valore} significa: "usa VAR se è già definita,
+# altrimenti usa 'valore'". Così si può sovrascrivere tutto dal local.conf.
+#
+# Qui ci sono SOLO le variabili che servono alla shell (dove si trova il plugin,
+# quale Python usare). I valori di default di soglie e opzioni dell'analisi
+# (CPS_CLOUD, CPS_RAM_WARN, CPS_BACKUP_MAX_AGE_DAYS...) vivono in un solo posto:
+# cpostureStacky/config.py. plugin.sh inoltra al programma le variabili CPS_*
+# che l'utente ha definito nel local.conf, senza ripeterne i default.
+
+# Cartella dove DevStack clona il plugin ($DEST di solito è /opt/stack)
+CPS_DIR=${CPS_DIR:-$DEST/cpostureStacky}
+
+# Python che esegue l'analisi: il virtualenv di DevStack (contiene openstacksdk).
+# Se non esiste, plugin.sh ripiega su python3 di sistema.
+CPS_PYTHON=${CPS_PYTHON:-$DATA_DIR/venv/bin/python}

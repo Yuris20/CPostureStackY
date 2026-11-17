@@ -1,0 +1,4 @@
+# Dipendenza unica del progetto. Versione volutamente non fissata: nel plugin DevStack
+# la versione è decisa dai vincoli di DevStack (pip_install), non da questo file.
+# Verificato con openstacksdk 4.22.0 e Python 3.12.
+openstacksdk

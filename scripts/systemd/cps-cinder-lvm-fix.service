@@ -1,0 +1,38 @@
+# cps-cinder-lvm-fix.service - ESEMPIO (non installato automaticamente).
+#
+# Esegue scripts/fix_cinder_lvm.sh a ogni avvio della macchina, PRIMA di cinder-volume,
+# così il Volume Group è già riconosciuto quando Cinder parte, senza intervento manuale.
+#
+# Installazione (a tua scelta, richiede root; sostituisci il percorso del progetto):
+#   sudo cp scripts/systemd/cps-cinder-lvm-fix.service /etc/systemd/system/
+#   sudo nano /etc/systemd/system/cps-cinder-lvm-fix.service   # correggi ExecStart
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable cps-cinder-lvm-fix.service
+# Rimozione:  sudo systemctl disable cps-cinder-lvm-fix.service && sudo rm /etc/systemd/system/cps-cinder-lvm-fix.service
+#
+# Note:
+#  - --no-restart: a questo punto Cinder non è ancora avviato, quindi non va riavviato.
+#  - --attach-loop (facoltativo): collega il backing file a un loop se nessuno lo ha già
+#    fatto. Aggiungilo SOLO se sul tuo sistema il loop non viene ricollegato da solo: se
+#    due meccanismi collegassero lo stesso file, lo script si fermerebbe (codice 12).
+#  - 'Before=' ordina l'avvio ma NON blocca Cinder se lo script fallisce: l'errore resta
+#    visibile con  systemctl status cps-cinder-lvm-fix  e  journalctl -u cps-cinder-lvm-fix.
+#  - Codice 10 = Cinder/LVM di DevStack non applicabile: non è considerato un errore.
+#  - NON è stato provato su un systemd reale: verifica con  systemd-analyze verify  e con
+#    un riavvio di prova.
+
+[Unit]
+Description=CPostureStackY - ripristino del Volume Group LVM di Cinder dopo il riavvio
+After=local-fs.target
+Before=devstack@c-vol.service
+ConditionPathExists=/opt/stack/data/stack-volumes-lvmdriver-1-backing-file
+
+[Service]
+Type=oneshot
+ExecStart=/PERCORSO/DEL/PROGETTO/scripts/fix_cinder_lvm.sh --no-restart
+SuccessExitStatus=10
+TimeoutStartSec=120
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
