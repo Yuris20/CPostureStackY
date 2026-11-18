@@ -49,11 +49,6 @@ SNAPSHOT_LABEL = "snapshot"
 BACKUP_LABEL = "backup"
 
 
-def _utc_now():
-    """Ora attuale in UTC (funzione separata per poterla sostituire nei test)."""
-    return datetime.now(timezone.utc)
-
-
 def _is_attached_to_active_vm(volume, active_server_ids):
     """True se almeno un attachment del volume punta a una VM attiva.
 
@@ -133,7 +128,7 @@ def run(conn, config):
         failed_items = snap_failed + backup_failed
 
         # 3) Valutazione volume per volume
-        now = _utc_now()
+        now = datetime.now(timezone.utc)
         max_age_days = config.BACKUP_MAX_AGE_DAYS
         for volume in volumes_in_scope:
             resource_name = findings_model.describe_resource(volume.name, volume.id)

@@ -51,13 +51,13 @@ def make_finding(category, severity, resource, message):
     }
 
 
-def describe_resource(name, resource_id, unnamed_label="senza-nome"):
+def describe_resource(name, resource_id):
     """Testo identificativo di una risorsa: "nome (primi 8 caratteri dell'id)".
 
     L'id abbreviato permette di distinguere due risorse con lo stesso nome
     (frequente: ogni progetto ha un security group chiamato "default").
     """
-    return f"{name or unnamed_label} ({str(resource_id)[:8]})"
+    return f"{name or 'senza-nome'} ({str(resource_id)[:8]})"
 
 
 def make_error_finding(category, what, exc):

@@ -101,8 +101,7 @@ cpostureStacky/connection.py            connessione openstacksdk
 cpostureStacky/config.py                soglie, opzioni e percorsi
 cpostureStacky/checks/                  security.py, system.py, resource.py, backup.py, common.py
 cpostureStacky/report.py                report HTML (con filtri) e riepilogo console
-tests/                                  test automatici (unittest, senza cloud reale)
-scripts/                                demo_setup.sh, demo_cleanup.sh, demo_offline.py (non fanno parte del plugin)
+scripts/                                demo_setup.sh, demo_cleanup.sh, fix_cinder_lvm.sh, systemd/ (non fanno parte del plugin)
 reports/                                report generati
 ```
 
@@ -197,9 +196,8 @@ prosegue con un avviso). In modalità a secco usano `--check-only`. Per saltare 
 `CPS_DEMO_SKIP_CINDER_FIX=1`. Per renderlo automatico a ogni avvio esiste una unit systemd
 **facoltativa e non installata** in `scripts/systemd/`.
 
-**Limiti.** Richiede root (usa `sudo` se non lo si è). Provato con LVM e systemd *simulati*
-(`tests/test_fix_cinder_lvm.py`), non su una VM DevStack reale: i messaggi di LVM e il
-comportamento del devices file possono variare con la versione. I vecchi accept
+**Limiti.** Richiede root (usa `sudo` se non lo si è). Non provato su una VM DevStack
+reale: i messaggi di LVM e il comportamento del devices file possono variare con la versione. I vecchi accept
 (`a|loop19|`) restano nel filtro: sono innocui e non si possono distinguere con certezza da
 regole di altri backend.
 
@@ -208,7 +206,7 @@ Gli script in `scripts/` NON fanno parte del plugin (che resta read-only): servo
 solo a creare risorse "sbagliate" (e alcune "giuste" come controllo) per mostrare cosa
 rileva l'analisi.
 ```
-bash scripts/demo_setup.sh      # crea risorse con prefisso cps-demo (modalità leggera)
+bash scripts/demo_setup.sh      # crea la demo completa (risorse con prefisso cps-demo)
 python -m cpostureStacky.main   # esegue l'analisi e crea il report
 bash scripts/demo_cleanup.sh    # rimuove SOLO le risorse cps-demo-*
 ```
@@ -229,18 +227,14 @@ inutilizzabile. Per questo:
    allora l'emulazione software e ogni VM satura la CPU), se c'è una sola vCPU o se la RAM
    libera è sotto `CPS_DEMO_MIN_MEM_MB` (default 2048). `CPS_DEMO_FORCE=1` li ignora, a
    proprio rischio.
-4. **Modalità leggera (default)**: 2 VM con il flavor a RAM minore e immagine cirros,
-   3 volumi da 1 GB, 1 snapshot. La **modalità completa** (`CPS_DEMO_FULL=1`) aggiunge un
-   backup nativo (Cinder Backup: compressione e scrittura su Swift, la parte più pesante)
-   e un volume su VM spenta: consigliata solo con almeno 8 GB di RAM.
+4. **Demo completa (unica)**: 2 VM con il flavor a RAM minore e immagine cirros,
+   5 volumi da 1 GB, 1 snapshot, 1 backup nativo (Cinder Backup: compressione e scrittura
+   su Swift, la parte più pesante) e un volume su VM spenta: si consigliano almeno 8 GB di RAM.
 5. Durante il setup ogni passo stampa `[risorse]` con carico e RAM libera.
 6. Il cleanup cancella **una risorsa alla volta** attendendo ciascuna cancellazione e usa
    `--force` solo per volumi in `error_deleting`.
-7. **Senza toccare OpenStack**: `python scripts/demo_offline.py` esegue i controlli reali e il
-   vero report su un cloud **simulato** con lo stesso scenario (nessuna VM, nessun carico).
-   È una simulazione: dimostra la logica ma non sostituisce una prova su un cloud reale.
 
-Variabili opzionali: `CPS_DEMO_DRYRUN`, `CPS_DEMO_FULL`, `CPS_DEMO_MIN_MEM_MB`,
+Variabili opzionali: `CPS_DEMO_DRYRUN`, `CPS_DEMO_MIN_MEM_MB`,
 `CPS_DEMO_FORCE`, `CPS_DEMO_IMAGE`, `CPS_DEMO_FLAVOR`, `CPS_DEMO_NETWORK`.
 
 ### Risultato atteso
@@ -256,8 +250,8 @@ VM: `vm-active` ACTIVE con sg-web + sg-internal, `vm-stopped` SHUTOFF.
 | `vol-nobackup` (su vm-active, nessuna copia) | Backup | MEDIUM |
 | `vol-protected` (su vm-active, con snapshot) | Backup | nessuna segnalazione |
 | `vol-orphan` (non collegato) | Resource | MEDIUM "Volume orfano"; **nessuna** segnalazione Backup |
-| `vol-backup` (solo modalità completa; solo backup nativo) | Backup | nessuna segnalazione (MEDIUM + INFO "Backup nativi" se il servizio backup non è disponibile) |
-| `vol-onstopped` (solo modalità completa; su vm-stopped) | - | fuori perimetro backup, conteggiato tra gli "esclusi" |
+| `vol-backup` (solo backup nativo) | Backup | nessuna segnalazione (MEDIUM + INFO "Backup nativi" se il servizio backup non è disponibile) |
+| `vol-onstopped` (su vm-stopped) | - | fuori perimetro backup, conteggiato tra gli "esclusi" |
 
 Per vedere anche il caso "snapshot vecchio" si può abbassare la soglia, ad esempio
 `CPS_BACKUP_MAX_AGE_DAYS=0` (ogni copia è più vecchia di 0 giorni).

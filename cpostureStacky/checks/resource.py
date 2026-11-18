@@ -15,7 +15,7 @@ Due controlli:
 
 READ-ONLY: solo chiamate di lettura (hypervisors, get_limits, volumes).
 """
-from cpostureStacky.findings import describe_resource, make_error_finding, make_finding
+from cpostureStacky import findings as findings_model
 
 CATEGORY = "Resource"
 
@@ -38,8 +38,9 @@ def _usage_finding(label, resource_name, used, total, warn_percent, crit_percent
         severity = "MEDIUM"
     else:
         return None         # utilizzo normale: nessuna segnalazione
-    return make_finding(CATEGORY, severity, resource_name,
-                        f"{label} al {usage_percent:.0f}% ({used}/{total})")
+    return findings_model.make_finding(
+        CATEGORY, severity, resource_name,
+        f"{label} al {usage_percent:.0f}% ({used}/{total})")
 
 
 def _check_hypervisors(conn, config):
@@ -100,15 +101,15 @@ def _check_volumes(conn):
     """Cerca volumi orfani (available e senza attachment) o in errore."""
     volume_findings = []
     for volume in conn.block_storage.volumes(details=True, all_projects=True):
-        resource_name = describe_resource(volume.name, volume.id)
+        resource_name = findings_model.describe_resource(volume.name, volume.id)
         status = (volume.status or "").lower()
         # 'attachments' è la lista dei collegamenti a VM: vuota = non usato
         if status == "available" and not volume.attachments:
-            volume_findings.append(make_finding(
+            volume_findings.append(findings_model.make_finding(
                 CATEGORY, "MEDIUM", resource_name,
                 f"Volume orfano: {volume.size} GB non collegato a nessuna VM"))
         elif "error" in status:
-            volume_findings.append(make_finding(
+            volume_findings.append(findings_model.make_finding(
                 CATEGORY, "MEDIUM", resource_name, f"Volume in stato {status}"))
     return volume_findings
 
@@ -135,18 +136,18 @@ def run(conn, config):
             else:
                 reason = ("Dati di utilizzo degli hypervisor non disponibili (campi "
                           "assenti: tipico di Nova con microversion >= 2.88)")
-            resource_findings.append(make_finding(
+            resource_findings.append(findings_model.make_finding(
                 CATEGORY, "INFO", "Capacità hypervisor",
                 f"{reason}: uso le quote del progetto"))
             resource_findings += _check_project_quota(conn, config)
     except Exception as exc:
-        resource_findings.append(make_error_finding(
+        resource_findings.append(findings_model.make_error_finding(
             CATEGORY, "Capacità non verificata", exc))
 
     try:
         resource_findings += _check_volumes(conn)
     except Exception as exc:
-        resource_findings.append(make_error_finding(
+        resource_findings.append(findings_model.make_error_finding(
             CATEGORY, "Volumi non verificati", exc))
 
     return resource_findings
