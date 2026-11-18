@@ -53,13 +53,6 @@ Nota: uno snapshot resta sullo stesso storage del volume; il backup nativo no.
 Il plugin li considera entrambi sufficienti, come richiesto, ma non distingue la
 robustezza della protezione.
 
-## Errori dei controlli
-Se un controllo non riesce a completarsi (servizio non raggiungibile, credenziali
-errate...) il report **non** mostra "OK": il riquadro della categoria diventa
-**ERRORE** e il programma esce con codice 2. Codici di uscita: `0` analisi
-completa (anche se trova problemi), `1` connessione non riuscita, `2` report
-generato ma parziale.
-
 ## Architettura
 ```
             DevStack (stack.sh)
@@ -136,17 +129,13 @@ deployment non viene interrotto. Il report si trova in `$DEST/cpostureStacky/rep
 | `CPS_LOG_LEVEL` | `WARNING` | livello dei log diagnostici (`DEBUG` mostra i dettagli degli errori) |
 
 ## Limiti noti
-- **Capacità**: dalla microversion 2.88 di Nova l'API degli hypervisor non espone più
-  RAM/vCPU. In quel caso si usano le quote del progetto dell'utente (limite amministrativo
-  di un solo progetto, non capacità fisica) e il report lo dichiara con un INFO.
 - Le credenziali devono essere amministrative (`all_projects`): con un utente normale
   si vedrebbero solo le risorse del proprio progetto.
-- I volumi sono "orfani" se `available` e senza attachment.
 - La mappatura Security Group → VM considera solo le porte Neutron di VM Nova; gruppi usati
   solo da altre porte (router, load balancer) risultano "non associati ad alcuna VM".
 - Una regola senza `remote_ip_prefix` né `remote_group_id` è trattata come aperta a tutti
   (semantica Neutron): comportamento da confermare sul proprio cloud.
-- Nessuna analisi dei ruoli/permessi Keystone né dei Floating IP (estensioni future).
+- Le VM non sono state avviate realmente poiché le risorse hardware del PC locale non sono sufficienti a sostenere il carico richiesto dall'ambiente.
 
 ## Cinder/LVM dopo un riavvio (`scripts/fix_cinder_lvm.sh`)
 **Problema.** DevStack salva i dati di Cinder in un file (*backing file*) collegato a un
@@ -209,52 +198,4 @@ rileva l'analisi.
 bash scripts/demo_setup.sh      # crea la demo completa (risorse con prefisso cps-demo)
 python -m cpostureStacky.main   # esegue l'analisi e crea il report
 bash scripts/demo_cleanup.sh    # rimuove SOLO le risorse cps-demo-*
-```
-
-### Peso sul sistema e uso sicuro (importante su una VM DevStack piccola)
-Gli script chiamano solo le API, ma il lavoro pesante lo fanno i servizi DevStack sulla
-stessa macchina: avviare VM, collegare volumi e cancellare volumi (Cinder su LVM li
-azzera con `dd`) può saturare CPU, RAM o disco di una VM piccola fino a renderla
-inutilizzabile. Per questo:
-
-1. **Prima simula**: `CPS_DEMO_DRYRUN=1 bash scripts/demo_setup.sh` stampa i comandi senza
-   eseguirli (idem per `demo_cleanup.sh`, che mostra cosa cancellerebbe).
-2. **Procedi a stadi**, controllando RAM e carico (`free -m`, `top` in un secondo
-   terminale) tra uno e l'altro:
-   `bash scripts/demo_setup.sh security` (solo chiamate API) →
-   `... volumes` (volumi e snapshot) → `... vms` (VM, collegamenti, spegnimento).
-3. **Controlli automatici**: le VM non vengono create se manca `/dev/kvm` (DevStack usa
-   allora l'emulazione software e ogni VM satura la CPU), se c'è una sola vCPU o se la RAM
-   libera è sotto `CPS_DEMO_MIN_MEM_MB` (default 2048). `CPS_DEMO_FORCE=1` li ignora, a
-   proprio rischio.
-4. **Demo completa (unica)**: 2 VM con il flavor a RAM minore e immagine cirros,
-   5 volumi da 1 GB, 1 snapshot, 1 backup nativo (Cinder Backup: compressione e scrittura
-   su Swift, la parte più pesante) e un volume su VM spenta: si consigliano almeno 8 GB di RAM.
-5. Durante il setup ogni passo stampa `[risorse]` con carico e RAM libera.
-6. Il cleanup cancella **una risorsa alla volta** attendendo ciascuna cancellazione e usa
-   `--force` solo per volumi in `error_deleting`.
-
-Variabili opzionali: `CPS_DEMO_DRYRUN`, `CPS_DEMO_MIN_MEM_MB`,
-`CPS_DEMO_FORCE`, `CPS_DEMO_IMAGE`, `CPS_DEMO_FLAVOR`, `CPS_DEMO_NETWORK`.
-
-### Risultato atteso
-VM: `vm-active` ACTIVE con sg-web + sg-internal, `vm-stopped` SHUTOFF.
-
-| Risorsa di demo | Categoria | Esito atteso |
-|-----------------|-----------|--------------|
-| `sg-web` (22, 80, 3306 aperte; su vm-active) | Security | HIGH (22), HIGH (3306), MEDIUM (80), con `vm-active` nel messaggio |
-| `sg-internal` (22 solo da 10.0.0.0/8; su vm-active) | Security | nessuna segnalazione |
-| `sg-stopped` (22 aperta; solo su vm-stopped) | Security | LOW `[Igiene]` "solo a VM non attive" |
-| `sg-orphan` (3306 aperta; su nessuna VM) | Security | LOW `[Igiene]` "non associato ad alcuna VM" |
-| `vm-stopped` | System | LOW (SHUTOFF) |
-| `vol-nobackup` (su vm-active, nessuna copia) | Backup | MEDIUM |
-| `vol-protected` (su vm-active, con snapshot) | Backup | nessuna segnalazione |
-| `vol-orphan` (non collegato) | Resource | MEDIUM "Volume orfano"; **nessuna** segnalazione Backup |
-| `vol-backup` (solo backup nativo) | Backup | nessuna segnalazione (MEDIUM + INFO "Backup nativi" se il servizio backup non è disponibile) |
-| `vol-onstopped` (su vm-stopped) | - | fuori perimetro backup, conteggiato tra gli "esclusi" |
-
-Per vedere anche il caso "snapshot vecchio" si può abbassare la soglia, ad esempio
-`CPS_BACKUP_MAX_AGE_DAYS=0` (ogni copia è più vecchia di 0 giorni).
-Nel report compariranno anche i riepiloghi INFO (VM totali, Security Group totali,
-Volumi analizzati). Eventuali altri Security Group del cloud (es. `default`) sono
-analizzati con le stesse regole.
+``
